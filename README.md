@@ -2,37 +2,37 @@
 
 ## 📌 Deskripsi Proyek
 
-**MLOps Air Quality PM2.5 Forecasting** merupakan implementasi sistem MLOps end-to-end untuk melakukan **peramalan konsentrasi partikulat PM2.5 jangka pendek secara berkelanjutan** di wilayah DKI Jakarta.
+**MLOps Air Quality PM2.5 Forecasting** merupakan proyek implementasi infrastruktur MLOps end-to-end untuk melakukan **peramalan konsentrasi partikulat PM2.5 jangka pendek secara berkelanjutan di wilayah DKI Jakarta**.
 
-Sistem menggunakan data time-series multivariat yang diperoleh secara dinamis melalui **Open-Meteo Air Quality API** dan **Open-Meteo Weather Forecast API**. Model dirancang untuk melakukan **multi-step forecasting**, yaitu memprediksi konsentrasi PM2.5 untuk **1 hingga 6 jam ke depan (t+1 sampai t+6)**.
+Proyek ini menggunakan data time-series dinamis dari **Open-Meteo Air Quality API** dan **Open-Meteo Weather Forecast API**. Sistem dirancang untuk melakukan **multi-step forecasting**, yaitu memprediksi konsentrasi PM2.5 untuk **1 hingga 6 jam ke depan (t+1 hingga t+6)**.
 
-Proyek ini tidak hanya berfokus pada pembangunan model machine learning, tetapi juga mencakup proses **data ingestion, data validation, feature engineering, model training, evaluation, deployment, serving, monitoring, hingga automatic retraining**.
+Selain pembangunan model machine learning, proyek mencakup tahapan **data ingestion, data validation, feature engineering, model training, model evaluation, deployment, model serving, monitoring, dan retraining**.
 
 ---
 
 ## 🎯 Tujuan Proyek
 
-Proyek ini bertujuan untuk:
+Tujuan utama proyek ini adalah:
 
 * Membangun sistem prediksi PM2.5 jangka pendek berbasis data dinamis.
-* Menghasilkan prediksi PM2.5 untuk horizon **t+1 hingga t+6 jam**.
-* Menerapkan prinsip **MLOps end-to-end** dalam pengembangan sistem machine learning.
-* Memastikan kualitas dan freshness data yang digunakan dalam pipeline.
+* Melakukan prediksi PM2.5 untuk **t+1 hingga t+6 jam**.
+* Menerapkan konsep **MLOps end-to-end** pada sistem machine learning.
+* Menjaga kualitas dan freshness data yang digunakan dalam pipeline.
 * Mendeteksi **data drift** dan penurunan performa model.
-* Mengimplementasikan mekanisme **continuous learning dan automatic retraining**.
-* Menyediakan hasil prediksi melalui layanan API yang dapat digunakan oleh sistem lain.
+* Menerapkan mekanisme **continuous learning dan automatic retraining**.
+* Menyediakan hasil prediksi melalui layanan API.
 
 ---
 
 ## 📊 Data Source
 
-Sistem menggunakan dua sumber data utama dari Open-Meteo.
+Proyek menggunakan dua sumber data dari Open-Meteo.
 
-### 1. Air Quality API
+### Air Quality API
 
-Data kualitas udara berasal dari **Open-Meteo Air Quality API** dengan sumber atmospheric composition **CAMS Global**.
+Data kualitas udara diperoleh dari **Open-Meteo Air Quality API** dengan sumber **CAMS Global**.
 
-Variabel kualitas udara yang digunakan antara lain:
+Variabel yang digunakan meliputi:
 
 * PM2.5
 * PM10
@@ -41,13 +41,11 @@ Variabel kualitas udara yang digunakan antara lain:
 * CO
 * O₃
 
-**Target utama:** `PM2.5`
+**Target prediksi:** PM2.5
 
-### 2. Weather Forecast API
+### Weather Forecast API
 
-Data meteorologi berasal dari **Open-Meteo Weather Forecast API**.
-
-Variabel yang digunakan meliputi:
+Data cuaca diperoleh dari **Open-Meteo Weather Forecast API**, meliputi:
 
 * Temperature
 * Relative Humidity
@@ -61,43 +59,158 @@ Variabel yang digunakan meliputi:
 
 **DKI Jakarta, Indonesia**
 
-Koordinat yang digunakan:
-
 ```text
 Latitude  : -6.2146
 Longitude : 106.8451
 ```
 
-Data berbentuk **hourly time-series** dan digabungkan berdasarkan timestamp sebelum digunakan dalam proses preprocessing dan feature engineering.
+Data yang digunakan berupa **hourly time-series** dan digabungkan berdasarkan timestamp.
 
 ---
 
-## 🤖 Machine Learning Task
+# 📁 Struktur Direktori
 
-### Task
+Struktur direktori utama proyek adalah sebagai berikut:
+
+```text
+MLOps-Air-Quality-PM25-Forecasting/
+│
+├── .devcontainer/     # Konfigurasi GitHub Codespaces
+│
+├── config/            # Konfigurasi pipeline dan parameter
+│
+├── data/              # Penyimpanan data
+│   ├── raw/           # Data mentah hasil fetching API
+│   └── processed/     # Data hasil preprocessing dan feature engineering
+│
+├── docs/              # Dokumentasi proyek dan laporan LK
+│
+├── models/            # Artefak model terlatih
+│
+├── notebooks/         # Notebook untuk EDA dan eksperimen
+│
+├── src/               # Source code utama
+│   └── main.py        # Entry point pipeline
+│
+├── tests/             # Unit testing
+│
+├── .gitignore
+├── LICENSE
+├── README.md
+└── requirements.txt
+```
+
+> Struktur direktori dapat dikembangkan menjadi beberapa modul seperti ingestion, validation, preprocessing, training, serving, dan monitoring sesuai perkembangan implementasi proyek.
+
+---
+
+# 💻 Menjalankan Proyek dengan GitHub Codespaces
+
+Proyek ini menggunakan konfigurasi **`.devcontainer/`** untuk membantu menyediakan environment pengembangan yang konsisten melalui **GitHub Codespaces**.
+
+## 1. Membuka Repository
+
+Buka repository proyek pada GitHub.
+
+Kemudian klik:
+
+```text
+Code → Codespaces → Create codespace on main
+```
+
+Tunggu hingga GitHub Codespaces selesai membuat development environment.
+
+---
+
+## 2. Membuka Terminal
+
+Setelah Codespaces terbuka, buka terminal melalui:
+
+```text
+Terminal → New Terminal
+```
+
+Kemudian periksa versi Python:
+
+```bash
+python --version
+```
+
+Pastikan Python yang digunakan memenuhi versi yang dibutuhkan proyek, yaitu **Python 3.10 atau lebih baru**.
+
+---
+
+## 3. Install Dependencies
+
+Install seluruh library yang dibutuhkan menggunakan:
+
+```bash
+pip install -r requirements.txt
+```
+
+Dependencies utama yang digunakan dalam proyek antara lain:
+
+* Pandas
+* NumPy
+* Requests
+* Scikit-learn
+* XGBoost
+* MLflow
+* FastAPI
+* Uvicorn
+* Great Expectations / Pydantic
+* Evidently AI
+
+---
+
+## 4. Menjalankan Pipeline
+
+Setelah dependencies selesai di-install, jalankan entry point proyek:
+
+```bash
+python src/main.py
+```
+
+Pipeline akan menjalankan proses sesuai implementasi yang tersedia pada source code.
+
+---
+
+## 5. Menjalankan Model Serving
+
+Apabila FastAPI telah diimplementasikan, model dapat dijalankan menggunakan:
+
+```bash
+uvicorn src.main:app --reload
+```
+
+Server kemudian dapat diakses melalui environment Codespaces.
+
+---
+
+# 🤖 Machine Learning Task
+
+Proyek ini menggunakan pendekatan:
 
 **Supervised Time-Series Regression / Multi-Step Forecasting**
 
-### Target
-
-Prediksi konsentrasi PM2.5:
+Target yang diprediksi:
 
 ```text
-t+1 hour
-t+2 hours
-t+3 hours
-t+4 hours
-t+5 hours
-t+6 hours
+PM2.5(t+1)
+PM2.5(t+2)
+PM2.5(t+3)
+PM2.5(t+4)
+PM2.5(t+5)
+PM2.5(t+6)
 ```
 
-Model memanfaatkan informasi historis PM2.5 serta variabel kualitas udara dan meteorologi sebagai fitur prediktor.
+Fitur prediksi berasal dari data historis PM2.5 serta variabel kualitas udara dan meteorologi.
 
 ---
 
-## 🔄 MLOps Pipeline
+# 🔄 MLOps Pipeline
 
-Sistem dirancang sebagai pipeline MLOps yang terdiri dari beberapa tahapan utama:
+Pipeline MLOps dirancang dengan alur:
 
 ```text
 Open-Meteo API
@@ -116,207 +229,104 @@ Model Evaluation
       ↓
 MLflow Model Registry
       ↓
-Docker Build & Test
+Deployment
       ↓
 FastAPI Model Serving
       ↓
 Monitoring
       ↓
-Drift / Performance Detection
+Drift & Performance Detection
       ↓
-Retraining Trigger
+Retraining
       └──────────────→ Model Training
 ```
 
-### 1. 📥 Data Ingestion
+## 1. Data Ingestion
 
-Pipeline mengambil data terbaru dari Open-Meteo menggunakan **REST API**.
+Data terbaru diperoleh melalui REST API dari Open-Meteo dengan mekanisme **pull-based**.
 
-Mekanisme pengambilan data menggunakan pendekatan **pull-based**, dengan pipeline dijalankan secara berkala setiap **6 jam**.
+Pipeline dirancang berjalan setiap **6 jam** untuk memperoleh data terbaru.
 
-Data mentah kemudian disimpan untuk digunakan pada tahap preprocessing dan training.
+## 2. Data Validation
 
----
+Data yang diperoleh akan diperiksa sebelum digunakan untuk proses machine learning.
 
-### 2. ✅ Data Validation
-
-Data yang diperoleh dari API diperiksa sebelum digunakan dalam proses machine learning.
-
-Validasi mencakup:
+Validasi meliputi:
 
 * Struktur data
 * Tipe data
 * Missing values
-* Validitas timestamp
-* Konsistensi variabel
-* Nilai yang berada di luar batas yang tidak wajar
+* Timestamp
+* Konsistensi data
+* Nilai yang tidak valid
 
-Tools yang direncanakan untuk digunakan:
+Tools yang digunakan atau direncanakan:
 
-* **Great Expectations**
-* **Pydantic**
+* Great Expectations
+* Pydantic
 
----
+## 3. Feature Engineering
 
-### 3. ⚙️ Feature Engineering
+Data time-series diolah menjadi fitur yang dapat digunakan oleh model, termasuk:
 
-Data time-series diubah menjadi fitur yang dapat digunakan oleh model regression.
+* Lag features
+* Data historis PM2.5
+* Variabel kualitas udara
+* Variabel meteorologi
+* Target multi-step forecasting
 
-Tahapan meliputi:
+## 4. Model Training
 
-* Penyusunan data berdasarkan timestamp.
-* Pembuatan fitur lag.
-* Penggunaan data historis PM2.5.
-* Penggabungan variabel kualitas udara dan cuaca.
-* Pembentukan target multi-step forecasting.
+Model regression digunakan untuk menghasilkan prediksi PM2.5.
 
-Contoh konsep fitur:
-
-```text
-PM2.5(t-1)
-PM2.5(t-2)
-PM2.5(t-3)
-...
-Weather(t)
-AirQuality(t)
-```
-
-Target:
-
-```text
-PM2.5(t+1) ... PM2.5(t+6)
-```
-
----
-
-### 4. 🧠 Continuous Learning
-
-Tahap training digunakan untuk menghasilkan kandidat model regression.
-
-Model yang dapat digunakan antara lain:
+Model kandidat dapat mencakup:
 
 * Baseline Regression
 * Scikit-learn Regression Models
 * XGBoost
 
-Model kandidat dibandingkan berdasarkan performa pada data validasi menggunakan metrik:
+Model dibandingkan berdasarkan performa MAE, RMSE, dan R².
 
-* MAE
-* RMSE
-* R²
+## 5. Model Registry
 
-Model dengan performa terbaik kemudian dikelola menggunakan **MLflow Model Registry**.
+Model terbaik dikelola menggunakan **MLflow Model Registry** untuk mendukung pengelolaan lifecycle model.
 
----
+## 6. Deployment & Serving
 
-### 5. 📈 Model Evaluation
+Model dikemas menggunakan **Docker** dan disediakan melalui REST API menggunakan:
 
-Performa model dievaluasi menggunakan beberapa metrik.
+* FastAPI
+* Uvicorn
 
-| Metric |     Target |
-| ------ | ---------: |
-| RMSE   | ≤ 15 μg/m³ |
-| MAE    | ≤ 10 μg/m³ |
-| R²     |     ≥ 0.70 |
+## 7. Monitoring
 
-Evaluasi dilakukan untuk memastikan model memenuhi target performa sebelum digunakan pada environment serving.
+Monitoring dilakukan terhadap:
 
----
+* Data quality
+* Data freshness
+* Inference latency
+* Model performance
+* Data drift
 
-### 6. 🚀 Continuous Deployment
-
-Model yang telah memenuhi kriteria performa dapat masuk ke tahap deployment.
-
-Proses deployment dirancang menggunakan:
-
-* GitHub Actions / Cron Job
-* Docker
-* Cloud PaaS
-
-Container digunakan untuk menjaga konsistensi environment antara proses development, testing, dan deployment.
+Evidently AI digunakan sebagai salah satu tools monitoring dan drift detection.
 
 ---
 
-### 7. 🌐 Model Serving
+# 🚨 Drift & Retraining Strategy
 
-Model disediakan melalui REST API menggunakan:
-
-* **FastAPI**
-* **Uvicorn**
-
-API memungkinkan sistem lain untuk meminta prediksi PM2.5 hingga **6 jam ke depan**.
-
-Contoh konsep request:
-
-```text
-GET /predict
-```
-
-Output yang diharapkan berupa prediksi:
-
-```text
-t+1 → PM2.5 prediction
-t+2 → PM2.5 prediction
-t+3 → PM2.5 prediction
-t+4 → PM2.5 prediction
-t+5 → PM2.5 prediction
-t+6 → PM2.5 prediction
-```
-
----
-
-### 8. 👀 Monitoring & Observability
-
-Monitoring dilakukan untuk memastikan sistem tetap berjalan dengan baik setelah deployment.
-
-Aspek yang dipantau meliputi:
-
-#### Data Quality
-
-Memantau kualitas data yang masuk ke pipeline.
-
-#### Data Freshness
-
-Memastikan data terbaru tersedia setelah sumber data melakukan update.
-
-#### Inference Latency
-
-Memantau waktu yang dibutuhkan API untuk menghasilkan prediksi.
-
-#### Model Performance
-
-Memantau perubahan performa model berdasarkan MAE dan RMSE.
-
-#### Data Drift
-
-Memantau perubahan distribusi data input dibandingkan dengan data referensi.
-
-Tools yang direncanakan:
-
-* **Evidently AI**
-* Monitoring metrics pada pipeline dan API
-
----
-
-## 🚨 Drift & Retraining Strategy
-
-Sistem menggunakan pendekatan **Hybrid Trigger** untuk menentukan kapan model perlu dilatih kembali.
-
-Hybrid trigger terdiri dari:
+Sistem menggunakan **Hybrid Trigger** yang terdiri dari:
 
 ```text
 Performance Decay
-       +
+        +
 Data Drift
-       +
+        +
 Scheduled Retraining
 ```
 
-### 1. Performance Decay
+### Performance Decay
 
-Retraining dilakukan apabila performa model mengalami penurunan secara konsisten.
-
-Trigger:
+Retraining dipicu apabila:
 
 ```text
 MAE > 10 μg/m³
@@ -326,15 +336,11 @@ RMSE > 15 μg/m³
 
 selama **3 siklus berturut-turut**.
 
-Kondisi tersebut akan memicu **automatic emergency retraining**.
-
----
-
-### 2. Data Drift
+### Data Drift
 
 Data drift dideteksi menggunakan **Kolmogorov-Smirnov (KS) Test**.
 
-Trigger retraining:
+Trigger:
 
 ```text
 p-value < 0.05
@@ -342,27 +348,21 @@ p-value < 0.05
 
 pada sekitar **30% fitur utama**.
 
-Hal ini menunjukkan adanya perubahan distribusi fitur yang cukup signifikan dibandingkan dengan data referensi.
+### Scheduled Retraining
 
----
-
-### 3. Scheduled Retraining
-
-Selain berdasarkan kondisi model dan data, retraining juga dilakukan secara berkala.
-
-Jadwal:
+Retraining terjadwal dilakukan:
 
 ```text
 Setiap 14 hari
 ```
 
-Training menggunakan **sliding window 60 hari terakhir** agar model tetap beradaptasi terhadap kondisi data terbaru.
+dengan menggunakan **sliding window 60 hari terakhir**.
 
 ---
 
-## 📊 Success Metrics
+# 📈 Success Metrics
 
-### Model Performance
+## Model Performance
 
 | Metric |     Target |
 | ------ | ---------: |
@@ -370,7 +370,7 @@ Training menggunakan **sliding window 60 hari terakhir** agar model tetap berada
 | MAE    | ≤ 10 μg/m³ |
 | R²     |     ≥ 0.70 |
 
-### Operational Performance
+## Operational Performance
 
 | Metric                |                        Target |
 | --------------------- | ----------------------------: |
@@ -379,228 +379,59 @@ Training menggunakan **sliding window 60 hari terakhir** agar model tetap berada
 | Data Freshness        | ≤ 1 jam setelah data tersedia |
 | Service Availability  |            ≥ 90% uptime/bulan |
 
-### Business / User Requirement
-
-Sistem diharapkan:
-
-* Menghasilkan forecast **t+1 hingga t+6 jam** secara konsisten.
-* Menyediakan informasi prediksi sebelum periode yang diprediksi.
-* Mendukung penggunaan hasil forecast sebagai informasi **early warning kualitas udara**.
+Target tersebut digunakan sebagai indikator keberhasilan sistem secara teknis dan operasional.
 
 ---
 
-## 🏗️ System Architecture
-
-Arsitektur sistem secara konseptual:
-
-```text
-                 ┌──────────────────────┐
-                 │     Open-Meteo API   │
-                 │  Air Quality +       │
-                 │  Weather Forecast    │
-                 └──────────┬───────────┘
-                            │
-                            ▼
-                 ┌──────────────────────┐
-                 │   Data Ingestion     │
-                 │     REST / Pull      │
-                 └──────────┬───────────┘
-                            │
-                            ▼
-                 ┌──────────────────────┐
-                 │  Data Validation     │
-                 │ Great Expectations   │
-                 │     / Pydantic       │
-                 └──────────┬───────────┘
-                            │
-                            ▼
-                 ┌──────────────────────┐
-                 │ Feature Engineering  │
-                 │   Lag Transformation │
-                 └──────────┬───────────┘
-                            │
-                            ▼
-                 ┌──────────────────────┐
-                 │   Model Training     │
-                 │ Scikit-learn/XGBoost │
-                 └──────────┬───────────┘
-                            │
-                            ▼
-                 ┌──────────────────────┐
-                 │       MLflow         │
-                 │   Model Registry     │
-                 └──────────┬───────────┘
-                            │
-                            ▼
-                 ┌──────────────────────┐
-                 │    Docker + CI/CD    │
-                 └──────────┬───────────┘
-                            │
-                            ▼
-                 ┌──────────────────────┐
-                 │ FastAPI + Uvicorn    │
-                 │   Model Serving      │
-                 └──────────┬───────────┘
-                            │
-                            ▼
-                 ┌──────────────────────┐
-                 │ Monitoring & Drift   │
-                 │      Evidently       │
-                 └──────────┬───────────┘
-                            │
-                            ▼
-                  Retraining Trigger
-                            │
-                            └──────→ Training
-```
-
----
-
-## 🛠️ Tech Stack
+# 🛠️ Tech Stack
 
 | Category             | Technology                   |
 | -------------------- | ---------------------------- |
 | Programming Language | Python 3.10+                 |
-| Data Ingestion       | Requests, Open-Meteo API     |
+| Data Source          | Open-Meteo API               |
 | Data Processing      | Pandas, NumPy                |
 | Data Validation      | Great Expectations, Pydantic |
 | Machine Learning     | Scikit-learn, XGBoost        |
 | Experiment Tracking  | MLflow                       |
 | CI/CD                | GitHub Actions               |
 | Scheduling           | Cron Job                     |
-| API Serving          | FastAPI, Uvicorn             |
+| Model Serving        | FastAPI, Uvicorn             |
 | Monitoring           | Evidently AI                 |
 | Containerization     | Docker                       |
 | Deployment           | Cloud PaaS / Render          |
-| Data Format          | JSON → Tabular / Parquet     |
 | Version Control      | Git & GitHub                 |
 
 ---
 
-## 📁 Project Structure
+# 🔁 Continuous Pipeline
 
-```text
-MLOps-Air-Quality-PM25/
-│
-├── .devcontainer/
-│   └── ...
-│
-├── config/
-│   └── ...
-│
-├── data/
-│   ├── raw/
-│   └── processed/
-│
-├── docs/
-│   └── ...
-│
-├── models/
-│   └── ...
-│
-├── notebooks/
-│   └── ...
-│
-├── src/
-│   └── main.py
-│
-├── tests/
-│   └── ...
-│
-├── .gitignore
-├── LICENSE
-├── README.md
-└── requirements.txt
-```
-
-> Struktur direktori dapat dikembangkan menjadi modul terpisah untuk ingestion, validation, feature engineering, training, serving, dan monitoring seiring implementasi pipeline.
-
----
-
-## 🚀 Installation
-
-Clone repository:
-
-```bash
-git clone <repository-url>
-cd MLOps-Air-Quality-PM25-Forecasting
-```
-
-Buat virtual environment:
-
-```bash
-python -m venv venv
-```
-
-Aktifkan virtual environment.
-
-### Windows
-
-```bash
-venv\Scripts\activate
-```
-
-### Linux / macOS
-
-```bash
-source venv/bin/activate
-```
-
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
----
-
-## ▶️ Running the Project
-
-Jalankan pipeline utama:
-
-```bash
-python src/main.py
-```
-
-Jika model serving telah tersedia menggunakan FastAPI:
-
-```bash
-uvicorn src.main:app --reload
-```
-
-API kemudian dapat digunakan untuk mengakses endpoint prediksi.
-
----
-
-## 🔁 Continuous Pipeline
-
-Pipeline dirancang untuk berjalan secara berkala:
+Secara konseptual, pipeline berjalan secara berkala:
 
 ```text
 Every 6 Hours
-      ↓
+     ↓
 Fetch New Data
-      ↓
+     ↓
 Validate Data
-      ↓
+     ↓
 Update Dataset
-      ↓
-Generate Features
-      ↓
+     ↓
+Feature Engineering
+     ↓
 Generate Prediction
-      ↓
+     ↓
 Monitor Performance & Drift
-      ↓
+     ↓
 Check Retraining Trigger
-      ↓
+     ↓
 Retrain if Necessary
 ```
 
-Dengan pendekatan ini, sistem dapat terus beradaptasi terhadap perubahan karakteristik data PM2.5 dan kondisi meteorologi.
+Frekuensi pengambilan data disesuaikan dengan pembaruan sumber data yang digunakan. CAMS Global diperbarui setiap 12 jam, sedangkan data weather forecast ECMWF tersedia dengan pembaruan yang lebih sering.
 
 ---
 
-## 📌 Current Development Status
+# 📌 Development Status
 
 | Component                  | Status         |
 | -------------------------- | -------------- |
@@ -620,27 +451,26 @@ Dengan pendekatan ini, sistem dapat terus beradaptasi terhadap perubahan karakte
 
 ---
 
-## 🔮 Future Development
+# 🔮 Future Development
 
-Pengembangan selanjutnya mencakup:
+Pengembangan selanjutnya meliputi:
 
-* Implementasi pipeline ingestion otomatis.
-* Implementasi data validation secara otomatis.
-* Pengembangan fitur lag dan time-series.
-* Eksperimen dan pemilihan model terbaik.
+* Otomatisasi data ingestion.
+* Implementasi data validation.
+* Pengembangan feature engineering untuk time-series.
+* Eksperimen model machine learning.
 * Integrasi MLflow Model Registry.
 * Containerization menggunakan Docker.
 * Deployment model serving.
-* Implementasi monitoring menggunakan Evidently.
+* Implementasi monitoring.
 * Implementasi data drift detection.
-* Implementasi automatic retraining berdasarkan hybrid trigger.
-* Pengembangan sistem menjadi layanan forecasting kualitas udara yang dapat digunakan secara berkelanjutan.
+* Automatic retraining berdasarkan hybrid trigger.
 
 ---
 
-## 📚 Project Documentation
+# 📚 Documentation
 
-Dokumentasi lengkap mengenai inisiasi dan rancangan sistem tersedia pada:
+Dokumentasi lengkap mengenai rancangan proyek tersedia pada folder:
 
 ```text
 docs/
