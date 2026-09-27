@@ -294,8 +294,11 @@ scheduler tanpa intervensi manual, termasuk berhasil pulih dari kegagalan
 koneksi sementara (`Read timed out`) berkat mekanisme retry:
 
 [04:54:00] Scheduler: Sending due task fetch-air-quality-every-6-hours
+
 [04:54:10] WARNING - Percobaan 1/3 gagal (koneksi): Read timed out
+
 [04:54:16] INFO - Status Ingestion: Berhasil! Jumlah baris data: 120
+
 [04:54:16] Task ... succeeded: {'status': 'success', 'rows': 120, ...}
 
 Untuk produksi, jadwal diatur setiap 6 jam melalui `crontab(minute=0, hour='0,6,12,18')` di `src/data/celery_config.py`.
