@@ -20,6 +20,16 @@ client = Minio(
 
 
 def load_all_raw() -> pd.DataFrame:
+    """
+    Mengambil seluruh file Parquet di folder data/raw/ pada MinIO,
+    lalu menggabungkannya menjadi satu DataFrame tunggal.
+
+    Returns:
+        DataFrame gabungan dari semua file raw yang ditemukan.
+
+    Raises:
+        FileNotFoundError: jika tidak ada file raw yang ditemukan.
+    """
     files = sorted(o.object_name for o in client.list_objects(
         BUCKET, prefix="data/raw/", recursive=True))
     if not files:
@@ -115,6 +125,13 @@ def validate_schema(df: pd.DataFrame) -> None:
 
 
 def save_processed(df: pd.DataFrame):
+    """
+    Menyimpan DataFrame hasil cleaning sebagai file Parquet
+    ke MinIO pada path data/processed/data_processed_latest.parquet.
+
+    Args:
+        df: DataFrame yang sudah dibersihkan dan siap disimpan.
+    """
     buf = io.BytesIO()
     df.to_parquet(buf, index=False)
     buf.seek(0)
@@ -130,6 +147,14 @@ def save_processed(df: pd.DataFrame):
 
 
 def run_preprocessing():
+    """
+    Menjalankan alur preprocessing lengkap: memuat seluruh data raw,
+    memvalidasi skema, membersihkan data, lalu menyimpan hasilnya
+    sebagai data processed ke MinIO.
+
+    Returns:
+        DataFrame hasil akhir yang sudah dibersihkan.
+    """
     df_raw = load_all_raw()
     validate_schema(df_raw)
     logging.info(f"Data raw setelah gabung: {df_raw.shape}")
