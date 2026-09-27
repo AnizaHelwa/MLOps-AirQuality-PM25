@@ -302,7 +302,26 @@ koneksi sementara (`Read timed out`) berkat mekanisme retry:
 [04:54:16] Task ... succeeded: {'status': 'success', 'rows': 120, ...}
 
 Untuk produksi, jadwal diatur setiap 6 jam melalui `crontab(minute=0, hour='0,6,12,18')` di `src/celery_config.py`.
-EOF
+
+### Catatan Teknis: Pemilihan Celery Beat vs GitHub Actions
+
+Pada rancangan LK-03, pemicu ingestion direncanakan menggunakan Cron Job
+atau GitHub Actions Scheduled Workflow. Pada implementasi LK-04 ini,
+scheduling diimplementasikan menggunakan **Celery Beat** sebagai
+alternatif, dengan pertimbangan:
+
+- GitHub Actions berjalan di runner terpisah (cloud), sehingga tidak
+  dapat mengakses `localhost` MinIO/Redis yang berjalan di lingkungan
+  GitHub Codespaces.
+- Celery Beat memungkinkan pengujian mekanisme *asynchronous task queue*
+  yaitu Redis sebagai broker, Celery Worker sebagai consumer yang secara utuh
+  dalam satu lingkungan pengembangan, sesuai arsitektur yang dirancang
+  di LK-03.
+
+Untuk tahap produksi mendatang, GitHub Actions Scheduled Workflow tetap
+menjadi opsi yang relevan apabila sistem sudah di-deploy ke server
+permanen dan bukan Codespace dengan MinIO/storage yang dapat diakses
+secara publik.
 
 ## 2. Data Validation
 
