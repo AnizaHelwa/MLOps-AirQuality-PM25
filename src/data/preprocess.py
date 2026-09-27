@@ -3,14 +3,20 @@ import logging
 import pandas as pd
 from minio import Minio
 
-logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(asctime)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(levelname)s] %(asctime)s - %(message)s')
 
 MINIO_ENDPOINT = "localhost:9000"
 ACCESS_KEY = "minioadmin"
 SECRET_KEY = "minioadmin"
 BUCKET = "mlops-airquality-bucket"
 
-client = Minio(MINIO_ENDPOINT, access_key=ACCESS_KEY, secret_key=SECRET_KEY, secure=False)
+client = Minio(
+    MINIO_ENDPOINT,
+    access_key=ACCESS_KEY,
+    secret_key=SECRET_KEY,
+    secure=False)
 
 
 def load_all_raw() -> pd.DataFrame:
@@ -50,13 +56,15 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     ]
     for col in expected_numeric_cols:
         if col in df.columns and not pd.api.types.is_numeric_dtype(df[col]):
-            logging.warning(f"Kolom '{col}' bukan numerik, mencoba konversi paksa...")
+            logging.warning(
+                f"Kolom '{col}' bukan numerik, mencoba konversi paksa...")
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
     # 1. Pastikan time jadi datetime
     df["time"] = pd.to_datetime(df["time"])
 
-    # 2. Buang duplikat timestamp (antar file yang tumpang tindih), simpan yang paling baru
+    # 2. Buang duplikat timestamp (antar file yang tumpang tindih), simpan
+    # yang paling baru
     df = df.sort_values("time")
     before = len(df)
     df = df.drop_duplicates(subset="time", keep="last")
@@ -68,17 +76,21 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     # 4. Tangani missing values dengan interpolasi linear
     numeric_cols = df.select_dtypes(include="number").columns
     n_missing_before = df[numeric_cols].isna().sum().sum()
-    df[numeric_cols] = df[numeric_cols].interpolate(method="linear", limit_direction="both")
+    df[numeric_cols] = df[numeric_cols].interpolate(
+        method="linear", limit_direction="both")
     logging.info(f"Total NaN sebelum interpolasi: {n_missing_before}")
 
     # 5. Validasi batasan data
     before_valid = len(df)
     df = df[df["pm2_5"] >= 0]
     df = df[df["pm10"] >= 0]
-    df = df[(df["relative_humidity_2m"] >= 0) & (df["relative_humidity_2m"] <= 100)]
+    df = df[(df["relative_humidity_2m"] >= 0) &
+            (df["relative_humidity_2m"] <= 100)]
     df = df[(df["cloudcover"] >= 0) & (df["cloudcover"] <= 100)]
     df = df[(df["winddirection_10m"] >= 0) & (df["winddirection_10m"] <= 360)]
-    logging.info(f"Baris dibuang karena melanggar batas logis: {before_valid - len(df)}")
+    logging.info(
+        f"Baris dibuang karena melanggar batas logis: "
+        f"{before_valid - len(df)}")
 
     return df.reset_index(drop=True)
 
@@ -92,7 +104,11 @@ REQUIRED_COLUMNS = [
 
 
 def validate_schema(df: pd.DataFrame) -> None:
-    """Memastikan seluruh kolom wajib ada sebelum data diproses lebih lanjut."""
+    """
+    Memastikan seluruh kolom wajib ada sebelum data
+    diproses lebih lanjut.
+    """
+
     missing = set(REQUIRED_COLUMNS) - set(df.columns)
     if missing:
         raise ValueError(f"Data tidak memiliki kolom wajib: {missing}")
@@ -120,7 +136,9 @@ def run_preprocessing():
 
     df_clean = clean_data(df_raw)
     logging.info(f"Data final setelah cleaning: {df_clean.shape}")
-    logging.info(f"Rentang waktu data: {df_clean['time'].min()} s.d. {df_clean['time'].max()}")
+    logging.info(
+        f"Rentang waktu data: {df_clean['time'].min()} "
+        f"s.d. {df_clean['time'].max()}")
     logging.info(f"Total NaN tersisa: {df_clean.isna().sum().sum()}")
 
     save_processed(df_clean)

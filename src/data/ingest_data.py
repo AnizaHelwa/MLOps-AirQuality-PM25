@@ -83,7 +83,8 @@ def fetch_with_retry(url: str, params: dict, max_retries: int = MAX_RETRIES,
         except (requests.ConnectionError, requests.Timeout) as e:
             last_error = e
             logging.warning(
-                f"Percobaan {attempt}/{max_retries} ke {url} gagal (koneksi): {e}"
+                f"Percobaan {attempt}/{max_retries} ke {url} gagal "
+                f"(koneksi): {e}"
             )
 
         except requests.HTTPError as e:
@@ -96,7 +97,9 @@ def fetch_with_retry(url: str, params: dict, max_retries: int = MAX_RETRIES,
         if attempt < max_retries:
             time.sleep(delay)
 
-    logging.error(f"Semua {max_retries} percobaan ke {url} gagal. Melewati proses ingestion.")
+    logging.error(
+        f"Semua {max_retries} percobaan ke {url} gagal. "
+        f"Melewati proses ingestion.")
     raise last_error
 
 
@@ -130,7 +133,10 @@ def fetch_and_store_air_quality_data():
         data_aq = fetch_with_retry(url_aq, params_aq)
     except requests.RequestException as e:
         logging.error(f"Gagal mengambil data kualitas udara: {e}")
-        return {"status": "failed", "stage": "fetch_air_quality", "error": str(e)}
+        return {
+            "status": "failed",
+            "stage": "fetch_air_quality",
+            "error": str(e)}
 
     df_aq = pd.DataFrame(data_aq['hourly'])
 
@@ -156,7 +162,8 @@ def fetch_and_store_air_quality_data():
 
     # 3. Merge berdasarkan timestamp
     df_merged = pd.merge(df_aq, df_weather, on="time")
-    logging.info(f"Status Ingestion: Berhasil! Jumlah baris data: {len(df_merged)}")
+    logging.info(
+        f"Status Ingestion: Berhasil! Jumlah baris data: {len(df_merged)}")
 
     # 4. Simpan ke MinIO
     parquet_buffer = io.BytesIO()
@@ -179,7 +186,8 @@ def fetch_and_store_air_quality_data():
             content_type="application/octet-stream"
         )
         logging.info(
-            f"Data berhasil disimpan ke MinIO bucket '{BUCKET_NAME}' pada path: {object_name}"
+            f"Data berhasil disimpan ke MinIO bucket "
+            f"'{BUCKET_NAME}' pada path: {object_name}"
         )
     except Exception as e:
         logging.error(f"Gagal menyimpan data ke MinIO: {e}")
