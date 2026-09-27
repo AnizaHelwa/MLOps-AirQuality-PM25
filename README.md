@@ -263,7 +263,7 @@ dapat diakses lewat tab **PORTS** di VS Code, pada port `9001`
 
 **2. Jalankan ingestion**
 ```bash
-cd src/data
+cd src
 python ingest_data.py
 ```
 Skrip ini mengambil data dari Air Quality API dan Weather Forecast API,
@@ -301,7 +301,7 @@ koneksi sementara (`Read timed out`) berkat mekanisme retry:
 
 [04:54:16] Task ... succeeded: {'status': 'success', 'rows': 120, ...}
 
-Untuk produksi, jadwal diatur setiap 6 jam melalui `crontab(minute=0, hour='0,6,12,18')` di `src/data/celery_config.py`.
+Untuk produksi, jadwal diatur setiap 6 jam melalui `crontab(minute=0, hour='0,6,12,18')` di `src/celery_config.py`.
 EOF
 
 ## 2. Data Validation
