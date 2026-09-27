@@ -122,6 +122,7 @@ def fetch_and_store_air_quality_data():
         "longitude": LONGITUDE,
         "hourly": ["pm10", "pm2_5", "carbon_monoxide", "nitrogen_dioxide",
                    "sulphur_dioxide", "ozone"],
+        "past_days": 30,
         "timezone": "Asia/Jakarta"
     }
 
@@ -141,6 +142,7 @@ def fetch_and_store_air_quality_data():
         "hourly": ["temperature_2m", "relative_humidity_2m", "windspeed_10m",
                    "winddirection_10m", "surface_pressure", "precipitation",
                    "cloudcover"],
+        "past_days": 30,
         "timezone": "Asia/Jakarta"
     }
 
