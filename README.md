@@ -247,6 +247,44 @@ Data terbaru diperoleh melalui REST API dari Open-Meteo dengan mekanisme **pull-
 
 Pipeline dirancang berjalan setiap **6 jam** untuk memperoleh data terbaru.
 
+### Implementasi & Cara Menjalankan
+
+Ingestion dan preprocessing awal sudah diimplementasikan dan dapat dijalankan
+secara lokal di GitHub Codespaces:
+
+**1. Jalankan service pendukung (Redis & MinIO)**
+```bash
+docker compose up -d
+docker compose ps
+```
+Pastikan `mlops_redis` dan `mlops_minio` berstatus `running`. MinIO Console
+dapat diakses lewat tab **PORTS** di VS Code, pada port `9001`
+(login: `minioadmin` / `minioadmin`).
+
+**2. Jalankan ingestion**
+```bash
+cd src/data
+python ingest_data.py
+```
+Skrip ini mengambil data dari Air Quality API dan Weather Forecast API,
+menggabungkannya berdasarkan `time`, lalu menyimpan hasilnya sebagai file
+Parquet baru (bertimestamp, tidak menimpa file lama) ke MinIO bucket
+`mlops-airquality-bucket`, path `data/raw/`.
+
+**3. Jalankan preprocessing**
+```bash
+python preprocess.py
+```
+Skrip ini menggabungkan **seluruh** file di `data/raw/`, membuang duplikat
+timestamp (mengambil versi prakiraan paling baru), menangani missing value
+dengan interpolasi linear, memvalidasi batas nilai logis (mis. `pm2_5 ≥ 0`,
+kelembapan 0–100%), lalu menyimpan hasil bersih ke
+`data/processed/data_processed_latest.parquet` di MinIO.
+
+> **Catatan:** Data disimpan di MinIO (S3-compatible object storage),
+> bukan langsung di filesystem/Git, agar repositori tetap ringan sesuai
+> strategi *Object Storage* pada `docs/`.
+
 ## 2. Data Validation
 
 Data yang diperoleh akan diperiksa sebelum digunakan untuk proses machine learning.
