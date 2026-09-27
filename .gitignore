@@ -216,3 +216,5 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+celerybeat-schedule
+src/data/celerybeat-schedule
