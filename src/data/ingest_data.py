@@ -52,7 +52,7 @@ RETRY_DELAY_SECONDS = 5
 
 
 def fetch_with_retry(url: str, params: dict, max_retries: int = MAX_RETRIES,
-                      delay: int = RETRY_DELAY_SECONDS) -> dict:
+                     delay: int = RETRY_DELAY_SECONDS) -> dict:
     """
     Mengambil data dari sebuah endpoint REST API dengan mekanisme retry.
 
@@ -79,15 +79,18 @@ def fetch_with_retry(url: str, params: dict, max_retries: int = MAX_RETRIES,
             response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
             return response.json()
+
         except (requests.ConnectionError, requests.Timeout) as e:
             last_error = e
             logging.warning(
                 f"Percobaan {attempt}/{max_retries} ke {url} gagal (koneksi): {e}"
             )
+
         except requests.HTTPError as e:
             last_error = e
             logging.warning(
-                f"Percobaan {attempt}/{max_retries} ke {url} gagal (HTTP {e.response.status_code}): {e}"
+                f"Percobaan {attempt}/{max_retries} ke {url} gagal "
+                f"(HTTP {e.response.status_code}): {e}"
             )
 
         if attempt < max_retries:
