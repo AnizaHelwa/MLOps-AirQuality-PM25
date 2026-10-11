@@ -388,7 +388,150 @@ Evidently AI digunakan sebagai salah satu tools monitoring dan drift detection.
 
 ---
 
-# 🚨 Drift & Retraining Strategy
+# 🗂️ Data Versioning dengan DVC
+
+## Mengapa Data Versioning Krusial untuk Reproduktifitas
+
+Model machine learning tidak hanya ditentukan oleh kode dan hyperparameter,
+tetapi juga oleh **data yang digunakan untuk melatihnya**. Tanpa pelacakan
+versi data yang jelas, performa model yang direproduksi di waktu berbeda
+bisa berbeda meski kode dan konfigurasinya identik, karena data di balik
+layar sudah berubah.
+
+Dalam proyek ini, data ditarik secara berkala dari Open-Meteo API dan
+bersifat *forecast* (prakiraan), yang nilainya **bisa direvisi dari waktu
+ke waktu** meski nama file dan jumlah barisnya sama. Tanpa versioning,
+tidak ada cara membedakan "data yang dipakai saat model A dilatih" dengan
+"data terbaru yang sudah berubah nilainya" — padahal keduanya bisa memiliki
+nama file yang identik.
+
+Alasan konkret mengapa ini penting untuk proyek PM2.5 forecasting:
+
+1. **Reproduksibilitas eksperimen**: Setiap model yang dilatih perlu bisa
+   ditelusuri ke versi data persis yang digunakan. Jika suatu model
+   menunjukkan performa baik di evaluasi tapi gagal direproduksi, versi
+   data adalah kandidat penyebab pertama yang harus bisa dicek.
+2. **Audit trail untuk continual learning**: Karena sistem dirancang untuk
+   retraining otomatis berdasarkan data baru (lihat strategi Hybrid
+   Retraining Trigger), setiap siklus retraining perlu tercatat memakai
+   versi data yang mana, agar penurunan atau peningkatan performa model
+   bisa dikaitkan dengan perubahan data yang spesifik.
+3. **Efisiensi repositori**: Git dirancang untuk melacak perubahan teks,
+   bukan file biner/besar. Dengan DVC, file fisik dataset tidak pernah
+   masuk ke riwayat Git secara langsung — yang tersimpan di Git hanyalah
+   file pointer kecil (`.dvc`) berisi hash. Ini menjaga ukuran repositori
+   tetap ringan meski dataset terus bertambah dan berubah dari waktu ke
+   waktu.
+4. **Rollback yang aman**: Jika versi data baru ternyata mengandung
+   anomali (misalnya akibat gangguan API), tim dapat kembali ke versi
+   data sebelumnya yang sudah terbukti valid, tanpa kehilangan riwayat
+   data yang baru.
+
+## Arsitektur Versioning
+Git (riwayat kode & pointer) DVC Cache / Remote (riwayat data fisik)
+────────────────────────── 
+───────────────────────────────────────
+*.dvc (file pointer, berisi → .dvc/cache/ (lokal)
+hash MD5 + ukuran file) → MinIO bucket: dvc-storage/ (remote)
+
+Setiap kali `dvc add` dijalankan pada sebuah dataset, DVC:
+1. Menghitung hash MD5 dari file tersebut.
+2. Menyalin file fisik ke cache DVC lokal (`.dvc/cache/`).
+3. Membuat/memperbarui file pointer `<namafile>.dvc` yang berisi hash
+   dan metadata, lalu menambahkan nama file aslinya ke `.gitignore`
+   (supaya file besar tidak ikut ter-track langsung oleh Git).
+
+File pointer `.dvc` inilah yang di-commit ke Git — ukurannya kecil (hanya
+beberapa baris YAML), sehingga riwayat Git tetap ringan walau dataset
+fisiknya besar atau sering berubah.
+
+## Remote Storage: MinIO
+
+Cache DVC dikonfigurasi untuk melakukan sinkronisasi ke **MinIO**
+(self-hosted, S3-compatible object storage yang sama dengan yang dipakai
+pipeline ingestion), pada bucket `mlops-airquality-bucket`, folder
+`dvc-storage/`. Dengan begini, data yang di-track DVC tidak hanya
+tersimpan lokal di Codespace (yang bersifat sementara), tetapi juga
+tersimpan di storage yang persisten.
+
+Kredensial akses MinIO (access key dan secret key) disimpan secara
+terpisah di `.dvc/config.local`, yang **tidak ikut ter-commit ke Git**
+(otomatis di-gitignore oleh DVC), sehingga kredensial tidak terekspos di
+repositori publik. Konfigurasi utama (`url`, `endpointurl`) tetap berada
+di `.dvc/config` yang ter-commit, karena informasi ini tidak bersifat
+rahasia.
+
+## Alur Kerja Versioning Data
+
+### 1. Inisialisasi (sekali di awal project)
+
+```bash
+dvc init
+git add .dvc .dvcignore
+git commit -m "Initialize DVC"
+```
+
+### 2. Melacak dataset untuk pertama kali
+
+```bash
+dvc add data/raw/<nama_file>.csv
+git add data/raw/<nama_file>.csv.dvc data/raw/.gitignore
+git commit -m "Track dataset v1 with DVC"
+```
+
+### 3. Simulasi penambahan data baru (continual learning)
+
+Setiap kali `ingest_data.py` dijalankan ulang untuk mengambil data
+terbaru, dan data tersebut digunakan untuk memperbarui file yang sudah
+dilacak:
+
+```bash
+cd src
+python ingest_data.py
+cd ..
+dvc add data/raw/<nama_file>.csv
+git add data/raw/<nama_file>.csv.dvc
+git commit -m "Update dataset to v2: refreshed data"
+```
+
+### 4. Audit dan membandingkan dua versi data
+
+```bash
+git diff <commit_lama> -- data/raw/<nama_file>.csv.dvc
+dvc diff <commit_lama>
+dvc status
+```
+
+### 5. Sinkronisasi ke remote storage (MinIO)
+
+```bash
+dvc push
+dvc pull
+```
+
+## Contoh Hasil Nyata (Bukti dari Pengujian)
+
+Pada pengujian, dataset `raw_air_quality_weather_2026-09-27_12-57-17.csv`
+(840 baris) ditrack sebagai versi awal, lalu diperbarui dengan data hasil
+ingestion baru (tetap 840 baris, namun nilai forecast berbeda karena
+direvisi oleh sumber data). Hasil audit menunjukkan:
+
+| | Versi v1 | Versi v2 |
+|---|---|---|
+| MD5 hash | `9cdbf4915e43d287eabfbb6a1be38fb8` | `26c0cf45adae14bc4c76e2bdf2652438` |
+| Ukuran file | 66.737 bytes | 67.096 bytes |
+| Jumlah baris | 840 | 840 |
+
+Perintah `dvc diff` antara kedua commit tersebut mengonfirmasi:
+Modified:
+data/raw/raw_air_quality_weather_2026-09-27_12-57-17.csv
+
+files summary: 1 modified
+
+Ini membuktikan bahwa meskipun nama file dan jumlah baris identik, DVC
+berhasil mendeteksi perubahan isi data melalui hash MD5 — sesuatu yang
+tidak mungkin dideteksi hanya dengan melihat nama file atau ukuran baris
+data saja.# 🚨 Drift & Retraining Strategy
 
 Sistem menggunakan **Hybrid Trigger** yang terdiri dari:
 
