@@ -1,9 +1,11 @@
 """
 train.py
 
-File ini digunakan untuk melatih model XGBoost guna memprediksi konsentrasi PM2.5 satu jam
-ke depan (t+1), menggunakan data historis yang telah diproses pada percobaan sebelumnya yaitu LK-04 dan LK-05.
-Setiap eksperimen dicatat ke MLflow Tracking, mencakup parameter, metrik evaluasi, dan artefak model.
+File ini digunakan untuk melatih model XGBoost guna memprediksi
+konsentrasi PM2.5 satu jam ke depan (t+1), menggunakan data
+historis yang telah diproses pada LK-04 dan LK-05. Setiap
+eksperimen dicatat ke MLflow Tracking, mencakup parameter,
+metrik evaluasi, dan artefak model.
 """
 
 import io
@@ -37,6 +39,7 @@ WEATHER_FEATURES = [
     "precipitation", "cloudcover"
 ]
 
+
 def load_processed_data() -> pd.DataFrame:
     """
     Memuat data processed terbaru dari MinIO.
@@ -59,7 +62,7 @@ def load_processed_data() -> pd.DataFrame:
     except Exception as e:
         logging.error(f"Gagal memuat data processed dari MinIO: {e}")
         raise
-    
+
     r = client.get_object(BUCKET_NAME, PROCESSED_PATH)
     df = pd.read_parquet(io.BytesIO(r.read()))
     r.close()
@@ -67,6 +70,7 @@ def load_processed_data() -> pd.DataFrame:
     df["time"] = pd.to_datetime(df["time"])
     df = df.sort_values("time").reset_index(drop=True)
     return df
+
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -97,6 +101,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     data = data.dropna().reset_index(drop=True)
     return data
 
+
 def split_time_series(data: pd.DataFrame, train_ratio: float = -0.85):
     """
     Membagi data menjadi train dan test berdasarkan urutan waktu
@@ -110,11 +115,12 @@ def split_time_series(data: pd.DataFrame, train_ratio: float = -0.85):
     Returns:
         Tuple (train_df, test_df).
     """
-    
+
     split_idx = int(len(data) * train_ratio)
     train_df = data.iloc[:split_idx]
     test_df = data.iloc[split_idx:]
     return train_df, test_df
+
 
 def get_feature_columns():
     """Mengembalikan daftar nama kolom fitur yang dipakai model."""
@@ -122,7 +128,9 @@ def get_feature_columns():
     time_cols = ["hour_sin", "hour_cos", "dow_sin", "dow_cos"]
     return lag_cols + time_cols + WEATHER_FEATURES
 
-def train_and_log(n_estimators, max_depth, learning_rate, run_name=None):
+
+def train_and_log(n_estimators, max_depth, learning_rate,
+                  run_name=None, register_name=None):
     """
     Melatih model XGBoost dengan parameter yang diberikan, mengevaluasi
     pada test set, dan mencatat seluruh hasilnya ke MLflow.
@@ -132,6 +140,8 @@ def train_and_log(n_estimators, max_depth, learning_rate, run_name=None):
         max_depth: Kedalaman maksimum tiap pohon.
         learning_rate: Laju pembelajaran.
         run_name: Nama opsional untuk run MLflow.
+        register_name: Nama model di Model Registry. Jika diisi,
+            model didaftarkan sebagai versi baru.
     """
     logging.info("Memuat data processed...")
     df = load_processed_data()
@@ -179,7 +189,9 @@ def train_and_log(n_estimators, max_depth, learning_rate, run_name=None):
         mlflow.log_metric("rmse", rmse)
         mlflow.log_metric("r2", r2)
 
-        mlflow.xgboost.log_model(model, "model")
+        mlflow.xgboost.log_model(
+            model, "model", registered_model_name=register_name
+        )
 
         logging.info(
             f"MAE: {mae:.3f} | RMSE: {rmse:.3f} | R2: {r2:.3f}"
@@ -194,6 +206,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_depth", type=int, default=6)
     parser.add_argument("--learning_rate", type=float, default=0.1)
     parser.add_argument("--run_name", type=str, default=None)
+    parser.add_argument("--register_name", type=str, default=None)
     args = parser.parse_args()
 
     mlflow.set_experiment("pm25-forecasting-t1")
@@ -202,5 +215,6 @@ if __name__ == "__main__":
         n_estimators=args.n_estimators,
         max_depth=args.max_depth,
         learning_rate=args.learning_rate,
-        run_name=args.run_name
+        run_name=args.run_name,
+        register_name=args.register_name
     )
