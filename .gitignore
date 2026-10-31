@@ -219,3 +219,5 @@ __marimo__/
 celerybeat-schedule
 src/data/celerybeat-schedule
 *.zip
+src/mlruns/
+src/mlflow.db
