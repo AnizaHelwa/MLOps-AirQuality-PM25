@@ -531,7 +531,87 @@ files summary: 1 modified
 Ini membuktikan bahwa meskipun nama file dan jumlah baris identik, DVC
 berhasil mendeteksi perubahan isi data melalui hash MD5 — sesuatu yang
 tidak mungkin dideteksi hanya dengan melihat nama file atau ukuran baris
-data saja.# 🚨 Drift & Retraining Strategy
+data saja.
+
+# 📦 Model Registry, Versioning, dan Kesiapan Inferensi
+
+## Versi Model yang Aktif
+
+Model dikelola di MLflow Model Registry dengan nama
+`pm25-forecasting-xgboost`. Versi yang **aktif untuk inferensi adalah
+v1** (alias `production`), sedangkan v2 berada di Staging (alias
+`staging`).
+
+| Versi | Run asal | n_estimators | max_depth | learning_rate | MAE | RMSE | R² | Status |
+|---|---|---|---|---|---|---|---|---|
+| v1 | balanced | 150 | 5 | 0.08 | 12.029 | 16.921 | 0.884 | **Production** |
+| v2 | balanced_v2 | 200 | 5 | 0.06 | 12.562 | 17.563 | 0.876 | Staging |
+
+**Alasan memilih v1:** v1 memiliki MAE dan RMSE lebih rendah serta R²
+lebih tinggi daripada v2 pada test set yang sama (957 baris latih, 170
+baris uji, split 85/15 berbasis waktu). Selisihnya kecil dan diukur
+pada 170 baris saja, sehingga kesimpulannya adalah v1 sedikit lebih
+baik pada split ini, bukan jauh lebih unggul. v2 dipertahankan sebagai
+kandidat pembanding. Jika versi baru di masa depan terbukti lebih baik,
+ia dipromosikan ke Production dan v1 diarsipkan.
+
+Model ini **belum memenuhi target** yang ditetapkan pada tahap
+perencanaan (MAE ≤ 10 µg/m³, RMSE ≤ 15 µg/m³), sehingga diposisikan
+sebagai baseline awal untuk pengembangan lanjutan.
+
+## Alur Registrasi dan Transisi Stage
+
+1. Model terbaik dari LK-06 (`balanced`) didaftarkan sebagai v1.
+2. Model dilatih ulang dengan parameter berbeda (`balanced_v2`) dan
+   didaftarkan dengan nama yang sama sehingga menjadi v2.
+3. Deskripsi model dan tag tiap versi (algoritma, target, jumlah fitur,
+   baris latih/uji, metrik, sumber data) diisi lewat MLflow API.
+4. v1 dan v2 dipindahkan None → Staging, lalu v1 dipromosikan ke
+   Production. Alasan promosi dicatat pada tag `promotion_reason`.
+
+> **Catatan:** MLflow 3.x menandai Model Stage sebagai *deprecated* dan
+> menggantinya dengan alias; UI tidak lagi menampilkan kolom Stage.
+> Karena itu transisi dilakukan lewat API stage
+> (`transition_model_version_stage`) dan dicatat juga sebagai alias
+> `production` dan `staging` yang tampil di UI.
+
+## Verifikasi Inferensi
+
+Model Production dimuat dari registry lewat alias dan diuji dengan
+`src/test_inference.py`:
+
+~~~bash
+cd src
+python test_inference.py
+~~~
+
+Skrip memuat `models:/pm25-forecasting-xgboost@production` dengan
+`mlflow.pyfunc.load_model`, lalu memprediksi lima jam terakhir. Uji ini
+hanya membuktikan model siap dimuat dan menerima input. Akurasi dinilai
+dari metrik pada seluruh test set, bukan dari lima baris ini. Pada
+lima jam tersebut model memprediksi terlalu rendah saat PM2.5 naik
+tajam.
+
+## Sinkronisasi Metadata dengan DVC
+
+| File | Fungsi |
+|---|---|
+| `models/pm25-xgboost-production.dvc` | Pointer DVC (hash md5) ke artefak model Production |
+| `models/model_metadata.yaml` | Referensi model di registry, hyperparameter, metrik, hash model, dan silsilah data |
+| `src/export_model_metadata.py` | Skrip pembuat file metadata di atas |
+
+Artefak model disimpan di remote MinIO (`dvc-storage/`), sedangkan Git
+hanya menyimpan file pointer.
+
+**Keterbatasan silsilah data:** DVC melacak file CSV mentah sejak
+LK-05, sedangkan model dilatih dari data *processed* hasil gabungan
+banyak file raw, sehingga hubungannya tidak satu-satu. Hash data
+processed pada metadata dihitung saat metadata dibuat, bukan saat
+training. Jumlah baris latih dan uji yang identik pada v1 dan v2
+mendukung bahwa keduanya memakai data yang sama, tetapi tidak
+menjamin hash yang sama.
+
+# 🚨 Drift & Retraining Strategy
 
 Sistem menggunakan **Hybrid Trigger** yang terdiri dari:
 
