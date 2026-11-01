@@ -221,3 +221,4 @@ src/data/celerybeat-schedule
 *.zip
 src/mlruns/
 src/mlflow.db
+mlflow.db
