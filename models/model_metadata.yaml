@@ -1,0 +1,28 @@
+registered_model:
+  name: pm25-forecasting-xgboost
+  version: 1
+  alias: production
+  stage: Production
+  source_run_id: d67c79fa799d4caeabe6abafc4e78feb
+  source_run_name: balanced
+  model_uri: models:/pm25-forecasting-xgboost@production
+hyperparameters:
+  n_estimators: 150
+  max_depth: 5
+  learning_rate: 0.08
+metrics_test_set:
+  mae: 12.029
+  rmse: 16.921
+  r2: 0.884
+  test_rows: 170
+model_artifact_dvc:
+  pointer_file: models/pm25-xgboost-production.dvc
+  md5: 79f21f04155430b94cb82fcf7ee94a83.dir
+data_lineage:
+  training_data: data/processed/data_processed_latest.parquet
+  training_data_md5_at_export: 052be2e7c5e4d561f9ac165861c07e89
+  dvc_tracked_raw_datasets:
+    raw_air_quality_weather_2026-09-27_12-57-17.csv.dvc: 26c0cf45adae14bc4c76e2bdf2652438
+  note: Model dilatih dari data processed (gabungan file raw hasil ingestion). Hash
+    data processed dihitung saat metadata ini dibuat, bukan saat training.
+git_commit_at_export: b4ce05ace76e0ecb844c621aa43a8764336beb33
