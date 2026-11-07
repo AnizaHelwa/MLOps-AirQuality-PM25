@@ -9,6 +9,7 @@ metrik evaluasi, dan artefak model.
 """
 
 import io
+import os
 import argparse
 import logging
 
@@ -42,34 +43,36 @@ WEATHER_FEATURES = [
 
 def load_processed_data() -> pd.DataFrame:
     """
-    Memuat data processed terbaru dari MinIO.
+    Memuat data processed. Jika variabel lingkungan LOCAL_DATA_PATH
+    diisi, data dibaca dari file lokal (dipakai di CI); jika tidak,
+    data diambil dari MinIO.
 
     Returns:
-        DataFrame hasil preprocessing (LK-04/LK-05)
+        DataFrame hasil preprocessing (LK-04/LK-05), terurut waktu.
     """
-    client = Minio(
-        MINIO_ENDPOINT,
-        access_key=MINIO_ACCESS_KEY,
-        secret_key=MINIO_SECRET_KEY,
-        secure=False
-    )
+    local_path = os.environ.get("LOCAL_DATA_PATH")
+    if local_path:
+        data = pd.read_parquet(local_path)
+        logging.info(f"Data processed dimuat dari file lokal: {local_path}")
+    else:
+        client = Minio(
+            MINIO_ENDPOINT,
+            access_key=MINIO_ACCESS_KEY,
+            secret_key=MINIO_SECRET_KEY,
+            secure=False
+        )
+        try:
+            response = client.get_object(BUCKET_NAME, PROCESSED_PATH)
+            data = pd.read_parquet(io.BytesIO(response.read()))
+            response.close()
+            response.release_conn()
+            logging.info("Data processed berhasil dimuat dari MinIO.")
+        except Exception as e:
+            logging.error(f"Gagal memuat data processed dari MinIO: {e}")
+            raise
 
-    try:
-        response = client.get_object(BUCKET_NAME, PROCESSED_PATH)
-        data = pd.read_parquet(io.BytesIO(response.read()))
-        logging.info("Data processed berhasil dimuat dari MinIO.")
-        return data
-    except Exception as e:
-        logging.error(f"Gagal memuat data processed dari MinIO: {e}")
-        raise
-
-    r = client.get_object(BUCKET_NAME, PROCESSED_PATH)
-    df = pd.read_parquet(io.BytesIO(r.read()))
-    r.close()
-    r.release_conn()
-    df["time"] = pd.to_datetime(df["time"])
-    df = df.sort_values("time").reset_index(drop=True)
-    return df
+    data["time"] = pd.to_datetime(data["time"])
+    return data.sort_values("time").reset_index(drop=True)
 
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
