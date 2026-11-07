@@ -10,6 +10,10 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  MLFLOW_TRACKING_URI: sqlite:///mlflow.db
+  LOCAL_DATA_PATH: data/processed/data_processed_latest.parquet
+
 jobs:
   test:
     name: Job 1 - Automated Testing
@@ -29,3 +33,85 @@ jobs:
 
       - name: Jalankan unit test
         run: python -m pytest -v
+
+  train:
+    name: Job 2 - Automated Training
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout kode
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependensi
+        run: pip install -r requirements.txt
+
+      - name: Latih model
+        run: >
+          python src/train.py
+          --n_estimators 150
+          --max_depth 5
+          --learning_rate 0.08
+          --run_name ci_training
+
+      - name: Simpan hasil pelatihan sebagai artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: training-output
+          path: |
+            mlflow.db
+            mlruns
+          if-no-files-found: error
+
+  validate-and-register:
+    name: Job 3 - Validation and Registry
+    needs: train
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout kode
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependensi
+        run: pip install -r requirements.txt
+
+      - name: Ambil hasil pelatihan dari Job 2
+        uses: actions/download-artifact@v4
+        with:
+          name: training-output
+          path: .
+
+      - name: Validasi model terhadap baseline
+        run: python src/validate_model.py
+
+      - name: Daftarkan model ke Staging
+        run: python src/register_model.py
+
+      - name: Tampilkan status registry
+        run: |
+          python - << 'PYEOF'
+          from mlflow import MlflowClient
+
+          v = MlflowClient().get_model_version_by_alias(
+              "pm25-forecasting-xgboost", "staging")
+          print(f"@staging -> v{v.version} | stage={v.current_stage}")
+          PYEOF
+
+      - name: Simpan status registry sebagai artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: registry-state
+          path: |
+            mlflow.db
+            mlruns
+          if-no-files-found: error
