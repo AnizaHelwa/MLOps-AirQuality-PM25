@@ -102,7 +102,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     return data
 
 
-def split_time_series(data: pd.DataFrame, train_ratio: float = -0.85):
+def split_time_series(data: pd.DataFrame, train_ratio: float = 0.85):
     """
     Membagi data menjadi train dan test berdasarkan urutan waktu
     (bukan random split), untuk mencegah kebocoran informasi masa

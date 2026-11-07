@@ -75,7 +75,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
 
     # 2. Buang duplikat timestamp (antar file yang tumpang tindih), simpan
     # yang paling baru
-    df = df.sort_values("time")
+    df = df.sort_values("time", kind="stable")
     before = len(df)
     df = df.drop_duplicates(subset="time", keep="last")
     logging.info(f"Baris duplikat timestamp dibuang: {before - len(df)}")
