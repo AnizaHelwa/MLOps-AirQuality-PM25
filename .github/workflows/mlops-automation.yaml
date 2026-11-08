@@ -54,9 +54,9 @@ jobs:
       - name: Latih model
         run: >
           python src/train.py
-          --n_estimators 150
-          --max_depth 5
-          --learning_rate 0.07
+          --n_estimators 1
+          --max_depth 1
+          --learning_rate 0.1
           --run_name ci_training
 
       - name: Simpan hasil pelatihan sebagai artifact
