@@ -56,7 +56,7 @@ jobs:
           python src/train.py
           --n_estimators 150
           --max_depth 5
-          --learning_rate 0.08
+          --learning_rate 0.07
           --run_name ci_training
 
       - name: Simpan hasil pelatihan sebagai artifact
