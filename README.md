@@ -611,6 +611,78 @@ training. Jumlah baris latih dan uji yang identik pada v1 dan v2
 mendukung bahwa keduanya memakai data yang sama, tetapi tidak
 menjamin hash yang sama.
 
+# ⚙️ Otomatisasi End-to-End dengan GitHub Actions
+
+Workflow `.github/workflows/mlops-automation.yaml` menjalankan
+pengujian, pelatihan, validasi, dan registrasi model secara berantai
+setiap kali ada perubahan kode.
+
+## Pemicu
+
+| Pemicu | Keterangan |
+|---|---|
+| `push` | Ke branch `main` dan `eksperimen/lk08-github-actions` |
+| `pull_request` | Ke branch `main` |
+| `workflow_dispatch` | Tombol jalan manual (cadangan, bukan bukti utama) |
+
+## Tahapan
+
+| Job | Isi | Bergantung pada |
+|---|---|---|
+| Job 1 - Automated Testing | `pytest` (27 unit test, tanpa MinIO dan internet) | - |
+| Job 2 - Automated Training | Menjalankan `src/train.py` dengan data snapshot di repositori | Job 1 |
+| Job 3 - Validation and Registry | `validate_model.py`, lalu `register_model.py` (Staging) | Job 2 |
+
+Setiap job memakai `needs`, sehingga job berikutnya hanya jalan jika job
+sebelumnya hijau. Database MLflow dan artefak model dikirim dari Job 2
+ke Job 3 lewat `upload-artifact` dan `download-artifact`.
+
+## Gerbang Validasi
+
+`src/validate_model.py` membandingkan model hasil pelatihan dengan
+baseline naif (prediksi PM2.5 jam depan = PM2.5 jam ini) pada test set
+yang sama. Model lolos jika MAE **dan** RMSE-nya lebih rendah dari
+baseline. Jika tidak lolos, skrip keluar dengan kode 1 sehingga Job 3
+berhenti dan model tidak didaftarkan. Jika tidak ada run yang bisa
+dievaluasi, skrip keluar dengan kode 2 (bukan lolos diam-diam).
+
+Target perencanaan (MAE <= 10, RMSE <= 15) hanya dicetak sebagai
+informasi dan tidak memblokir. Model saat ini belum mencapainya.
+
+Model yang lolos didaftarkan ke MLflow Model Registry dengan status
+**Staging** oleh `src/register_model.py`.
+
+## Cara Menyimulasikan Perubahan
+
+Ubah hyperparameter pada langkah "Latih model" di workflow, lalu
+commit dan push:
+
+~~~bash
+sed -i 's/--learning_rate 0.08/--learning_rate 0.07/' .github/workflows/mlops-automation.yaml
+git add .github/workflows/mlops-automation.yaml
+git commit -m "Simulation: change learning_rate"
+git push origin eksperimen/lk08-github-actions
+~~~
+
+Simulasi yang dilakukan: (1) learning_rate 0.07, seluruh job hijau dan
+model masuk Staging; (2) model sengaja dilemahkan (1 pohon, kedalaman 1),
+validasi menolak dan Job 3 merah; (3) perubahan dibatalkan dengan
+`git revert`, seluruh job kembali hijau.
+
+## Keterbatasan
+
+- **Data CI adalah snapshot** `data/processed/data_processed_latest.parquet`
+  (840 baris) yang dibaca lewat `LOCAL_DATA_PATH`, bukan data terbaru
+  dari DVC, karena runner GitHub tidak dapat menjangkau MinIO lokal.
+  Metriknya tidak sebanding dengan v1 dan v2 di registry LK-07.
+- **Registry di CI tidak permanen.** Setiap run memulai database MLflow
+  baru, sehingga model selalu bernomor v1 dan tersimpan sebagai
+  artifact. Registry di Codespace tidak berubah.
+- **Gerbang validasi hanya menjamin model tidak lebih buruk dari
+  tebakan sederhana**, bukan bahwa model sudah baik.
+- Simulasi mengubah hyperparameter pada file workflow; perubahan
+  logika di folder `src/` belum diuji.
+
 # 🚨 Drift & Retraining Strategy
 
 Sistem menggunakan **Hybrid Trigger** yang terdiri dari:
