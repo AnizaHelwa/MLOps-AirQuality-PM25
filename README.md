@@ -252,13 +252,18 @@ Pipeline dirancang berjalan setiap **6 jam** untuk memperoleh data terbaru.
 Ingestion dan preprocessing awal sudah diimplementasikan dan dapat dijalankan
 secara lokal di GitHub Codespaces:
 
-**1. Jalankan service pendukung (Redis & MinIO)**
+**1. Jalankan layanan Docker Compose**
+
+Jalankan seluruh layanan menggunakan Docker Compose:
+
 ```bash
-docker compose up -d
+docker compose up -d --build
 docker compose ps
 ```
-Pastikan `mlops_redis` dan `mlops_minio` berstatus `running`. MinIO Console
-dapat diakses lewat tab **PORTS** di VS Code, pada port `9001`
+
+Perintah tersebut menjalankan seluruh service yang didefinisikan dalam
+`docker-compose.yaml`, termasuk PostgreSQL, MLflow, API, Redis, dan MinIO.
+MinIO Console dapat diakses melalui port `9001`
 (login: `minioadmin` / `minioadmin`).
 
 **2. Jalankan ingestion**
@@ -771,6 +776,178 @@ Target tersebut digunakan sebagai indikator keberhasilan sistem secara teknis da
 | Containerization     | Docker                       |
 | Deployment           | Cloud PaaS / Render          |
 | Version Control      | Git & GitHub                 |
+
+---
+
+# 🐳 Orkestrasi Layanan dengan Docker Compose (LK-09)
+
+## 1. Deskripsi
+
+Pada tahap ini, sistem MLOps Air Quality PM2.5 Forecasting
+diorkestrasi menggunakan **Docker Compose** agar beberapa layanan
+dapat dijalankan secara bersamaan dalam satu lingkungan terintegrasi.
+
+Orkestrasi ini memungkinkan API inferensi berkomunikasi dengan
+MLflow Tracking Server untuk mengambil model yang telah terdaftar
+pada MLflow Model Registry.
+
+## 2. Layanan yang Digunakan
+
+Sistem terdiri atas enam layanan utama:
+
+| Service | Fungsi |
+|---|---|
+| `postgres` | Menyimpan metadata MLflow |
+| `mlflow-server` | Mengelola experiment tracking dan model registry |
+| `trainer` | Melakukan pelatihan awal dan registrasi model |
+| `api-service` | Menyediakan layanan inferensi model melalui FastAPI |
+| `redis` | Menyediakan message broker untuk antrean Celery |
+| `minio` | Menyimpan data dan artefak menggunakan object storage |
+
+Seluruh layanan terhubung melalui custom bridge network
+`mlops-net`, sehingga setiap container dapat berkomunikasi
+menggunakan nama service.
+
+## 3. Menjalankan Seluruh Sistem
+
+### Persyaratan
+
+Pastikan lingkungan pengembangan telah menyediakan:
+
+- Docker Engine.
+- Docker Compose V2.
+- File `docker-compose.yaml` pada direktori utama proyek.
+- File dan direktori pendukung yang dibutuhkan oleh masing-masing service.
+
+### Menjalankan Container
+
+Dari direktori utama repository, jalankan satu perintah berikut:
+
+```bash
+docker compose up -d --build
+```
+
+Perintah tersebut akan membangun image yang diperlukan dan
+menjalankan seluruh layanan secara bersamaan dalam mode detached
+(background).
+
+Docker Compose juga mengatur urutan startup berdasarkan
+ketergantungan layanan (*service dependencies*) dan kondisi
+healthcheck yang telah didefinisikan.
+
+Pada proses startup:
+
+1. PostgreSQL dijalankan sebagai database metadata MLflow.
+2. MLflow menunggu PostgreSQL mencapai status healthy.
+3. Trainer menunggu MLflow siap, kemudian melakukan pelatihan
+   awal dan registrasi model apabila diperlukan.
+4. API menunggu MLflow healthy dan trainer berhasil menyelesaikan
+   prosesnya sebelum memulai layanan inferensi.
+5. Redis dan MinIO dijalankan sebagai layanan pendukung.
+
+## 4. Verifikasi Status Container
+
+Untuk memeriksa status layanan, jalankan:
+
+```bash
+docker compose ps
+```
+
+Pastikan layanan utama telah berjalan dengan status yang sesuai.
+API dan MLflow dilengkapi healthcheck untuk memeriksa kesiapan
+masing-masing layanan.
+
+Untuk melihat log API:
+
+```bash
+docker compose logs --tail=50 api-service
+```
+
+Untuk melihat seluruh container, termasuk container yang telah
+menyelesaikan proses sekali jalan seperti trainer:
+
+```bash
+docker compose ps -a
+```
+
+## 5. Pengujian Komunikasi Antar-Layanan
+
+API inferensi menggunakan MLflow Tracking Server melalui nama
+service `mlflow-server` pada jaringan internal Docker.
+
+Konfigurasi tracking URI:
+
+```text
+http://mlflow-server:5000
+```
+
+Pengujian endpoint health API dapat dilakukan menggunakan:
+
+```bash
+curl -s http://localhost:8000/health
+```
+
+Respons yang diharapkan menunjukkan status API, nama model,
+alias model, versi model, dan tracking URI yang digunakan.
+
+Contoh respons:
+
+```json
+{
+  "status": "ok",
+  "model_name": "pm25-forecasting-xgboost",
+  "model_alias": "production",
+  "model_version": "1",
+  "tracking_uri": "http://mlflow-server:5000"
+}
+```
+
+Keberhasilan pemuatan model juga dapat diverifikasi melalui log:
+
+```bash
+docker compose logs api-service
+```
+
+API dinyatakan berhasil terhubung apabila log menunjukkan bahwa
+model `pm25-forecasting-xgboost` dengan alias `production`
+berhasil dimuat melalui MLflow Tracking Server.
+
+## 6. Akses Layanan
+
+Setelah seluruh layanan berjalan, beberapa endpoint dapat
+diakses melalui port yang telah dipetakan:
+
+| Layanan | Alamat |
+|---|---|
+| FastAPI Health Check | http://localhost:8000/health |
+| MLflow Tracking UI | http://localhost:5000 |
+| MinIO Console | http://localhost:9001 |
+| MinIO API | http://localhost:9000 |
+
+## 7. Persistent Storage dan Penghentian Sistem
+
+Docker Compose menggunakan named volumes untuk menjaga
+persistensi data:
+
+| Volume | Fungsi |
+|---|---|
+| `pg_data` | Menyimpan data PostgreSQL |
+| `mlflow_artifacts` | Menyimpan artefak MLflow |
+| `minio_data` | Menyimpan objek pada MinIO |
+
+Untuk menghentikan seluruh layanan tanpa menghapus named volumes,
+jalankan:
+
+```bash
+docker compose down
+```
+
+Named volumes tetap dipertahankan sehingga data dapat digunakan
+kembali ketika sistem dijalankan ulang.
+
+> **Catatan:** Hindari penggunaan `docker compose down -v`
+> apabila data persisten masih diperlukan karena perintah tersebut
+> akan menghapus named volumes yang dikelola oleh Compose.
 
 ---
 
