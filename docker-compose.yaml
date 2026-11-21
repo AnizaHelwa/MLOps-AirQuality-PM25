@@ -47,6 +47,25 @@ services:
     networks:
       - mlops-net
 
+  # Pelatihan awal sekali jalan: mengisi registry jika masih kosong
+  trainer:
+    build:
+      context: .
+      dockerfile: docker/trainer/Dockerfile
+    image: mlops-trainer:1.0
+    container_name: mlops_trainer
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow-server:5000
+      LOCAL_DATA_PATH: /data/data_processed_latest.parquet
+    volumes:
+      - ./data/processed:/data:ro
+    depends_on:
+      mlflow-server:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - mlops-net
+
   # API inferensi: memuat model Production dari MLflow Registry
   api-service:
     build:
@@ -62,6 +81,8 @@ services:
     depends_on:
       mlflow-server:
         condition: service_healthy
+      trainer:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s

@@ -6,7 +6,7 @@ RUN apt-get update \
 
 RUN pip install --no-cache-dir \
     mlflow==3.17.1 xgboost==3.2.0 pandas==3.0.6 numpy==2.4.6 \
-    scikit-learn==1.9.1 fastapi uvicorn
+    scikit-learn==1.9.1 fastapi==0.165.0 uvicorn==0.54.0 starlette==1.10.0 pydantic==2.14.4
 
 WORKDIR /app
 COPY app.py .

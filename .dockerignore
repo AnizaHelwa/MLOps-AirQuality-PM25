@@ -1,0 +1,10 @@
+.git
+.dvc
+data
+models
+src/mlruns
+src/mlflow.db
+mlruns
+*.zip
+**/__pycache__
+.pytest_cache
