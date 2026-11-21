@@ -30,6 +30,7 @@ services:
       --backend-store-uri postgresql://${POSTGRES_USER:-mlflow}:${POSTGRES_PASSWORD:-mlflow}@postgres:5432/${POSTGRES_DB:-mlflow}
       --artifacts-destination /mlflow/artifacts
       --serve-artifacts
+      --allowed-hosts mlflow-server:5000,localhost:5000,127.0.0.1:5000
     ports:
       - "5000:5000"
     volumes:
@@ -43,6 +44,30 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
+    networks:
+      - mlops-net
+
+  # API inferensi: memuat model Production dari MLflow Registry
+  api-service:
+    build:
+      context: ./docker/api
+    image: mlops-api-service:1.0
+    container_name: mlops_api
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow-server:5000
+      MODEL_NAME: pm25-forecasting-xgboost
+      MODEL_ALIAS: production
+    ports:
+      - "8000:8000"
+    depends_on:
+      mlflow-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     networks:
       - mlops-net
 
