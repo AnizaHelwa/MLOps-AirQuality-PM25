@@ -121,6 +121,81 @@ services:
     networks:
       - mlops-net
 
+
+  # Metrics Gateway: mencatat metrik sebelum request diteruskan ke Nginx
+  metrics-gateway:
+    build:
+      context: ./docker/metrics-gateway
+    image: mlops-metrics-gateway:1.0
+    container_name: mlops_metrics_gateway
+    environment:
+      NGINX_URL: http://model-lb:80
+    ports:
+      - "8081:8000"
+    depends_on:
+      model-lb:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mlops-net
+
+  # Prometheus: mengumpulkan metrik secara berkala
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    container_name: mlops_prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=3d"
+      - "--storage.tsdb.retention.size=512MB"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - metrics-gateway
+      - cadvisor
+    networks:
+      - mlops-net
+
+  # cAdvisor: mengumpulkan metrik resource kontainer
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    container_name: mlops_cadvisor
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    networks:
+      - mlops-net
+
+  # Grafana: visualisasi metrik monitoring
+  grafana:
+    image: grafana/grafana:11.6.1
+    container_name: mlops_grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - mlops-net
+
   # Message Broker untuk Antrean Celery
   redis:
     image: redis:7-alpine
@@ -150,6 +225,8 @@ volumes:
   minio_data:
   pg_data:
   mlflow_artifacts:
+  prometheus_data:
+  grafana_data:
 
 networks:
   mlops-net:
