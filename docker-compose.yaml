@@ -92,6 +92,35 @@ services:
     networks:
       - mlops-net
 
+  # Model serving (MLflow Models) dengan beberapa replika
+  model-serve:
+    image: pm25-model-serve:1.0
+    pull_policy: never  # image dibangun lokal: scripts/build_model_image.sh
+    deploy:
+      replicas: 3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    networks:
+      - mlops-net
+
+  # Pintu masuk: membagi permintaan ke replika model-serve
+  model-lb:
+    image: nginx:1.27-alpine
+    container_name: mlops_model_lb
+    ports:
+      - "8080:80"
+    volumes:
+      - ./docker/lb/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      model-serve:
+        condition: service_healthy
+    networks:
+      - mlops-net
+
   # Message Broker untuk Antrean Celery
   redis:
     image: redis:7-alpine
