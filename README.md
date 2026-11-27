@@ -707,6 +707,7 @@ RMSE > 15 μg/m³
 
 selama **3 siklus berturut-turut**.
 
+
 ### Data Drift
 
 Data drift dideteksi menggunakan **Kolmogorov-Smirnov (KS) Test**.
@@ -730,6 +731,329 @@ Setiap 14 hari
 dengan menggunakan **sliding window 60 hari terakhir**.
 
 ---
+
+#  Model Serving dan Dynamic Scaling 
+
+### Overview
+
+Pada tahap ini, model terbaik untuk prediksi PM2.5 yang telah terdaftar dalam MLflow Model Registry diimplementasikan ke dalam layanan inferensi menggunakan MLflow Models dan Docker. Model yang digunakan adalah `pm25-forecasting-xgboost` dengan alias `production`.
+
+Untuk mendukung ketersediaan layanan dan distribusi permintaan inferensi, implementasi ini menggunakan beberapa replika model serving yang dikelola melalui Docker Compose serta Nginx sebagai load balancer.
+
+Arsitektur model serving terdiri atas:
+- **MLflow Model Registry:** menyimpan model yang telah dipilih untuk digunakan pada tahap Production.
+- **MLflow Models:** menyediakan mekanisme untuk menjalankan model sebagai REST API.
+- **Docker:** mengemas model beserta dependensinya ke dalam container.
+- **Docker Compose:** mengelola beberapa replika model serving.
+- **Nginx:** mendistribusikan permintaan inferensi ke replika model yang tersedia.
+
+### Build Docker Image
+
+Image model serving dibangun menggunakan perintah `mlflow models build-docker` dengan mengambil model berdasarkan alias `production` dari MLflow Model Registry.
+
+```bash
+MLFLOW_TRACKING_URI="sqlite:///$(pwd)/src/mlflow.db" \
+mlflow models build-docker \
+  -m "models:/pm25-forecasting-xgboost@production" \
+  -n pm25-model-serve:1.0 \
+  --env-manager virtualenv \
+  --install-mlflow
+```
+
+Keterangan:
+- `MLFLOW_TRACKING_URI`: menentukan lokasi MLflow Tracking dan Model Registry.
+- `-m`: menentukan model yang akan dikemas berdasarkan nama dan alias Production.
+- `-n`: memberikan nama image Docker, yaitu `pm25-model-serve:1.0`.
+- `--env-manager virtualenv`: menggunakan virtual environment untuk pengelolaan dependensi model.
+- `--install-mlflow`: memasang MLflow pada image serving.
+
+### Menjalankan Model Serving
+
+Setelah image berhasil dibangun, model serving dijalankan menggunakan Docker Compose dengan tiga replika.
+
+```bash
+docker compose up -d --scale model-serve=3 model-serve model-lb
+```
+
+Perintah tersebut menjalankan layanan `model-serve` sebanyak tiga replika dan `model-lb` sebagai pintu masuk permintaan inferensi.
+
+Untuk memeriksa status container, gunakan:
+
+```bash
+docker compose ps
+```
+
+Setiap replika menjalankan model MLflow secara independen, sedangkan Nginx meneruskan permintaan dari pengguna ke layanan model serving melalui jaringan internal Docker.
+
+### REST API Testing
+
+Model dapat diakses melalui endpoint yang disediakan oleh Nginx pada port `8080`.
+
+**Health Check**
+
+Endpoint `/ping` digunakan untuk memeriksa kesiapan layanan model serving.
+
+```bash
+curl -i http://localhost:8080/ping
+```
+
+Pengujian berhasil apabila server mengembalikan respons `HTTP/1.1 200 OK`.
+
+**Inference Endpoint**
+
+Endpoint `/invocations` digunakan untuk mengirimkan data masukan dan memperoleh hasil prediksi PM2.5.
+
+```bash
+curl -i -X POST http://localhost:8080/invocations \
+  -H "Content-Type: application/json" \
+  -d @input.json
+```
+
+Data masukan menggunakan format `dataframe_split` yang berisi nama kolom dan nilai fitur sesuai dengan skema input model.
+
+Contoh hasil respons:
+
+```json
+{
+  "predictions": [
+    120.98336029052734,
+    127.32823944091797
+  ]
+}
+```
+
+Respons dengan status `HTTP 200 OK` menunjukkan bahwa permintaan inferensi berhasil diproses oleh model.
+
+### Load Balancing
+
+Nginx digunakan sebagai load balancer untuk mendistribusikan permintaan inferensi ke replika model serving.
+
+Konfigurasi Nginx menggunakan DNS internal Docker (`127.0.0.11`) dengan interval pembaruan resolusi selama lima detik. Mekanisme ini memungkinkan Nginx mengenali perubahan alamat replika ketika jumlah container ditambah atau dikurangi.
+
+Untuk mengidentifikasi replika yang menangani permintaan, konfigurasi Nginx menambahkan header respons `X-Served-By`.
+
+Pengujian load balancing dilakukan dengan mengirimkan 30 permintaan inferensi secara berulang:
+
+```bash
+for i in $(seq 1 30); do
+  curl -s -o /dev/null -D - \
+    -X POST http://localhost:8080/invocations \
+    -H "Content-Type: application/json" \
+    -d @input.json \
+  | grep -i "^X-Served-By"
+done | sort | uniq -c
+```
+
+Hasil pengujian menunjukkan bahwa ketiga replika menerima permintaan inferensi, dengan distribusi sebagai berikut:
+
+| Replika | Jumlah Permintaan |
+|---|---:|
+| Replika 1 | 13 |
+| Replika 2 | 9 |
+| Replika 3 | 8 |
+| **Total** | **30** |
+
+Hasil tersebut menunjukkan bahwa Nginx berhasil mendistribusikan permintaan ke seluruh replika model serving.
+
+### Dynamic Scaling Simulation
+
+Pengujian scaling dilakukan untuk mengevaluasi kemampuan sistem dalam menambah dan mengurangi jumlah replika model serving sesuai kebutuhan.
+
+**Scaling Up**
+
+Jumlah replika ditingkatkan dari tiga menjadi lima menggunakan perintah:
+
+```bash
+docker compose up -d --scale model-serve=5 model-serve model-lb
+```
+
+**Scaling Down**
+
+Setelah pengujian scaling up, jumlah replika dikembalikan menjadi tiga:
+
+```bash
+docker compose up -d --scale model-serve=3 model-serve model-lb
+```
+
+Verifikasi jumlah replika dilakukan menggunakan:
+
+```bash
+docker compose ps
+```
+
+Hasil simulasi menunjukkan bahwa sistem berhasil menjalankan lima replika dan kemudian mengembalikannya menjadi tiga replika tanpa perlu membangun ulang Docker image.
+
+### Conclusion
+
+Implementasi model serving menggunakan MLflow Models dan Docker berhasil menyediakan REST API untuk inferensi prediksi PM2.5. Integrasi Nginx sebagai load balancer memungkinkan permintaan didistribusikan ke beberapa replika model serving.
+
+Pengujian menunjukkan bahwa ketiga replika dapat memproses permintaan inferensi, serta sistem mampu melakukan simulasi dynamic scaling dari tiga menjadi lima replika dan kembali menjadi tiga replika. Dengan demikian, implementasi ini menunjukkan kemampuan deployment model yang terkontainerisasi, terdistribusi, dan dapat disesuaikan kapasitasnya melalui Docker Compose.
+
+# Implementasi Observability dan Dashboard
+
+### Deskripsi
+
+Pada LK-11 dilakukan implementasi sistem observability untuk memantau operasional model Machine Learning PM2.5 yang telah di-deploy pada LK-10. Sistem monitoring dibangun menggunakan **Prometheus, Grafana, cAdvisor, dan Metrics Gateway**.
+
+Implementasi ini bertujuan untuk memantau performa inference, distribusi trafik pada model serving, penggunaan sumber daya sistem, serta distribusi hasil prediksi model secara terpusat melalui dashboard Grafana.
+
+### 1. Arsitektur Observability
+
+Sistem observability menggunakan beberapa komponen dengan fungsi sebagai berikut:
+
+| Komponen | Fungsi |
+|---|---|
+| Metrics Gateway | Meneruskan request inference ke model melalui Nginx serta mengumpulkan metrik operasional. |
+| Prometheus | Mengumpulkan dan menyimpan metrik dari Metrics Gateway dan cAdvisor. |
+| Grafana | Memvisualisasikan metrik dalam dashboard monitoring. |
+| cAdvisor | Mengumpulkan metrik penggunaan CPU dan memori container. |
+| Nginx Load Balancer | Mendistribusikan request inference ke tiga replica model serving. |
+
+Alur monitoring:
+
+1. User mengirimkan request inference melalui Metrics Gateway.
+2. Metrics Gateway meneruskan request ke Nginx Load Balancer.
+3. Nginx mendistribusikan request ke salah satu dari tiga replica model serving.
+4. Metrics Gateway mencatat jumlah request, status respons, latensi inference, replica yang melayani request, dan nilai prediksi PM2.5.
+5. Prometheus melakukan scraping metrik dari Metrics Gateway dan cAdvisor setiap 5 detik.
+6. Grafana menggunakan Prometheus sebagai data source untuk menampilkan metrik dalam dashboard monitoring.
+
+### 2. Implementasi Metrics Gateway
+
+Metrics Gateway dibangun menggunakan FastAPI dan Prometheus Client. Komponen ini berfungsi sebagai perantara antara client dan model serving.
+
+Endpoint yang tersedia:
+
+| Endpoint | Method | Fungsi |
+|---|---|---|
+| `/health` | GET | Memeriksa kesehatan Metrics Gateway. |
+| `/metrics` | GET | Menyediakan metrik dalam format Prometheus. |
+| `/invocations` | POST | Meneruskan request inference dan mencatat metrik operasional. |
+
+Metrik yang dikumpulkan meliputi:
+
+- `inference_requests_total`: total request inference berdasarkan method, endpoint, dan status respons.
+- `inference_latency_seconds`: distribusi waktu respons inference.
+- `pm25_prediction_value`: distribusi nilai hasil prediksi PM2.5.
+- `replica_requests_total`: jumlah request yang dilayani oleh masing-masing replica model.
+
+### 3. Konfigurasi Prometheus
+
+Prometheus dikonfigurasi melalui file `monitoring/prometheus/prometheus.yml` dengan interval scraping sebesar 5 detik.
+
+Target monitoring yang digunakan:
+
+| Job | Target | Keterangan |
+|---|---|---|
+| prometheus | `localhost:9090` | Monitoring Prometheus itu sendiri. |
+| metrics-gateway | `metrics-gateway:8000` | Mengumpulkan metrik inference dari Metrics Gateway. |
+| cadvisor | `cadvisor:8080` | Mengumpulkan metrik penggunaan sumber daya container. |
+
+Status seluruh target berhasil diverifikasi melalui halaman Prometheus Targets dengan status **UP**.
+
+### 4. Implementasi Dashboard Grafana
+
+Grafana dikonfigurasi menggunakan Prometheus sebagai data source. Dashboard disediakan melalui provisioning sehingga konfigurasi dashboard dan data source dapat dikelola melalui file YAML dan JSON.
+
+Dashboard bernama **PM25 Monitoring** berada dalam folder **MLOps Monitoring** dan terdiri atas enam panel:
+
+| No. | Panel | Metrik yang Dipantau |
+|---|---|---|
+| 1 | Inference Latency (P50/P95) | Persentil waktu respons inference. |
+| 2 | Inference Throughput (RPS) | Jumlah request inference per detik. |
+| 3 | CPU Usage per Container | Penggunaan CPU berdasarkan metrik cAdvisor. |
+| 4 | Memory Usage per Container | Penggunaan memori berdasarkan metrik cAdvisor. |
+| 5 | PM2.5 Prediction Distribution | Distribusi nilai prediksi PM2.5. |
+| 6 | Request Distribution per Replica | Distribusi request yang dilayani oleh masing-masing replica. |
+
+### 5. Pengujian dan Validasi
+
+Pengujian dilakukan untuk memastikan seluruh komponen observability dapat beroperasi dan mengumpulkan metrik dengan benar.
+
+Hasil validasi:
+
+- Metrics Gateway berhasil meneruskan request inference dengan respons HTTP 200 OK.
+- Model serving menghasilkan prediksi PM2.5 melalui endpoint `/invocations`.
+- Ketiga replica model berhasil menerima request melalui Nginx Load Balancer.
+- Prometheus berhasil melakukan scraping terhadap ketiga target monitoring dengan status UP.
+- Metrik request inference, latensi, dan distribusi prediksi berhasil tercatat di Prometheus.
+- Metrik CPU dan memori berhasil dikumpulkan melalui cAdvisor.
+- Seluruh enam panel dashboard Grafana berhasil menampilkan data aktual.
+
+Pada salah satu pemeriksaan metrik, tercatat 61 request inference berhasil dan 122 nilai prediksi. Setiap request menghasilkan dua nilai prediksi.
+
+### 6. Monitoring Model Drift dan Model Decay
+
+Distribusi hasil prediksi PM2.5 dipantau melalui metrik `pm25_prediction_value`. Perubahan distribusi prediksi dari waktu ke waktu dapat digunakan sebagai indikator awal terjadinya prediction drift.
+
+Namun, perubahan distribusi prediksi tidak secara langsung membuktikan terjadinya model decay.
+
+Untuk mendeteksi penurunan performa model secara lebih akurat, hasil prediksi perlu dibandingkan dengan nilai aktual (*ground truth*) menggunakan metrik evaluasi seperti Mean Absolute Error (MAE), Root Mean Squared Error (RMSE), dan R² dalam periode monitoring tertentu.
+
+Dengan demikian, dashboard pada LK-11 menyediakan fondasi observability untuk memantau operasional model serta mendukung deteksi dini perubahan karakteristik prediksi.
+
+### 7. Cara Menjalankan Monitoring
+
+Pastikan seluruh image Docker yang dibutuhkan telah tersedia secara lokal. Jalankan layanan monitoring dan model serving menggunakan perintah:
+
+```bash
+docker compose up -d --no-build --pull never \
+  --scale model-serve=3 \
+  model-serve model-lb metrics-gateway prometheus cadvisor grafana
+```
+
+Periksa status container:
+
+```bash
+docker compose ps
+```
+
+Akses layanan melalui alamat berikut:
+
+| Layanan | URL |
+|---|---|
+| Metrics Gateway | http://localhost:8081 |
+| Prometheus | http://localhost:9090 |
+| Prometheus Targets | http://localhost:9090/targets |
+| Grafana | http://localhost:3000 |
+
+Kredensial Grafana untuk konfigurasi pengembangan:
+
+- Username: `admin`
+- Password: `admin`
+
+### 8. Struktur File LK-11
+
+```text
+MLOps-AirQuality-PM25/
+├── docker/
+│   └── metrics-gateway/
+│       ├── Dockerfile
+│       └── app.py
+│
+├── monitoring/
+│   ├── prometheus/
+│   │   └── prometheus.yml
+│   │
+│   └── grafana/
+│       ├── dashboards/
+│       │   └── pm25-monitoring.json
+│       │
+│       └── provisioning/
+│           ├── dashboards/
+│           │   └── provider.yml
+│           │
+│           └── datasources/
+│               └── prometheus.yml
+│
+└── docker-compose.yaml
+```
+
+### Kesimpulan
+
+Implementasi LK-11 berhasil membangun sistem observability untuk model Machine Learning PM2.5 yang telah di-deploy pada LK-10. Integrasi Metrics Gateway, Prometheus, Grafana, dan cAdvisor memungkinkan pemantauan metrik inference, distribusi trafik pada tiga replica model, serta penggunaan sumber daya sistem melalui satu dashboard terpusat.
+
+Hasil implementasi ini menjadi dasar untuk melakukan pemantauan operasional secara berkelanjutan dan mendukung identifikasi dini terhadap perubahan performa model.
 
 # 📈 Success Metrics
 
